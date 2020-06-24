@@ -1,0 +1,74 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Compile-only MemoryManager_Lib",
+			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-c",
+				"-g",
+				"-Wall",
+				"-I/${workspaceFolder}\\MemoryManager_Lib\\headers",
+				"${workspaceFolder}\\MemoryManager_Lib\\source\\*.cpp",
+				"-o",
+				"${workspaceFolder}\\MemoryManager_Lib\\build.o"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build"
+		},
+		{
+			"type": "shell",
+			"label": "Link MemoryManager_Lib",
+			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-shared",
+				"-g",
+				"-Wall",
+				"${workspaceFolder}\\MemoryManager_Lib\\build.o",
+				"-o",
+				"${workspaceFolder}\\driver\\MemoryManager_Lib.dll"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"dependsOn":["Compile-only MemoryManager_Lib"],
+			"dependsOrder": "sequence"
+		},
+		{
+			"type": "shell",
+			"label": "C/C++ Build",
+			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-g",
+				"-Wall",
+				"${workspaceFolder}\\driver\\driver.cpp",
+				"-L${workspaceFolder}\\driver",
+				"${workspaceFolder}\\driver\\MemoryManager_Lib.dll",
+				"-o",
+				"${workspaceFolder}\\driver\\driver.exe"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"dependsOn":["Link MemoryManager_Lib"],
+			"dependsOrder": "parallel"
+		}
+	]
+}

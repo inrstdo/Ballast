@@ -1,0 +1,3 @@
+driver/*.exe
+driver/*.dll
+*.o
