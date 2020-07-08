@@ -14,7 +14,8 @@ namespace Ballast {
           private:
             struct Block
             {
-              Block(const unsigned size, const bool free, Block* const left, Block* const right, Block* parent);
+              Block();
+              Block(const unsigned size, const bool free, Block* const prev, Block* const next);
               ~Block();
 
 
@@ -28,17 +29,18 @@ namespace Ballast {
             };
 
 
-            Block* const traverseListAlloateNewBlock(unsigned const size, Block* const parentBlock);
+            Block* const traverseListAllocateNewBlock(unsigned const size);
 
             
             const unsigned c_totalSize;
             unsigned m_availableSize;
             char* m_freePool;
-            Block* m_parentNode;
+            Block* m_parentBlock;
             Page* m_next;
 
 
           public:
+            Page();
             Page(const unsigned pageSize, char* const freePool);
             ~Page();
 
@@ -50,7 +52,7 @@ namespace Ballast {
             template<typename T>
             T* allocate(const unsigned trueSize)
             {
-              Block* currentNode = m_parentNode;
+              Block* currentNode = m_parentBlock;
 
               return 0;
             }

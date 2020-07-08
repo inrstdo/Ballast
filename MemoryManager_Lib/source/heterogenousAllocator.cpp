@@ -41,22 +41,31 @@ namespace Ballast {
     }
 
 
-    HeterogeneousAllocator::Page::Page(const unsigned pageSize, char* const freePool) :
-      c_totalSize(pageSize),
-      m_availableSize(c_totalSize),
-      m_freePool(freePool),
-      m_parentNode(Block::allocateNew(m_freePool + sizeof(Page), pageSize, true, 0, 0, 0))
+    HeterogeneousAllocator::Page* const HeterogeneousAllocator::Page::allocateNew(const unsigned pageSize)
+    {
+      const unsigned trueSize = pageSize + sizeof(Page) + sizeof(Block);
+      char* const memory = new char[trueSize]; 
+      ::new (memory) Page(pageSize, memory + sizeof(Page));
+
+      return reinterpret_cast<Page*>(memory);
+    }
+
+
+    HeterogeneousAllocator::Page::Page() :
+      c_totalSize(0),
+      m_availableSize(0),
+      m_freePool(0),
+      m_parentBlock(0)
     {
     }
 
 
-    HeterogeneousAllocator::Page* const HeterogeneousAllocator::Page::allocateNew(const unsigned pageSize)
+    HeterogeneousAllocator::Page::Page(const unsigned pageSize, char* const freePool) :
+      c_totalSize(pageSize),
+      m_availableSize(c_totalSize),
+      m_freePool(freePool),
+      m_parentBlock(Block::allocateNew(m_freePool + sizeof(Page), pageSize, true, 0, 0))
     {
-      const unsigned trueSize = pageSize + sizeof(Page) + sizeof(Block);
-      const char* memory = new char[trueSize];
-      ::new reinterpret_cast<Page*>(memory) Page(pageSize, memory + sizeof(Page));
-
-      return reinterpret_cast<Page*>(memory);
     }
 
 
@@ -78,64 +87,75 @@ namespace Ballast {
     }
 
     
-    HetereogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::traverseTreeCreateNewBlock(unsigned const size, Block* const parentBlock)
+    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::traverseListAllocateNewBlock(unsigned const size)
     {
-      // if the current Block has capacity and is free
-      if(parentBlock->m_size >= size && parentBlock->m_free)
+      Block* currentBlock = m_parentBlock;
+
+      while(currentBlock)
       {
-        Block* newLeftBlock = 0;
-
-        // if there's capacity for another Block after this one
-        if(parentBlock->m_size - size > sizeof(Block))
+        // if the current Block has capacity and is free
+        if(currentBlock->m_size >= size && currentBlock->m_free)
         {
-          char* const memory = reinterpret_cast<const char*>(parentBlock);
-          newLeftBlock = Block::allocateNew(memory + size, parentBlock->m_size - size - sizeof(Block), true, m_parentNode->m_left, 0, m_parentNode);
+          Block* newNextBlock = 0;
+          const unsigned leftoverSize = currentBlock->m_size - size;
+          unsigned currentSize = size;
+
+          // if there's capacity for another Block after this one
+          if(leftoverSize > sizeof(Block))
+          {
+            char* const memory = reinterpret_cast<char*>(currentBlock);
+            newNextBlock = Block::allocateNew(memory + size, leftoverSize - sizeof(Block), true, currentBlock, currentBlock->m_next);
+
+            currentSize -= leftoverSize;
+          }
+
+          currentBlock->m_size = currentSize;
+          currentBlock->m_free = false;
+
+          if(newNextBlock)
+          {
+            currentBlock->m_next->m_prev = newNextBlock;
+            currentBlock->m_next = newNextBlock;
+          }
+
+          return currentBlock;
         }
 
-        parentBlock->m_size = size;
-        parentBlock->m_size = false;
-
-        if(newLeftBlock)
-        {
-          parentBlock->m_left = newLeftBlock;
-        }
-
-        return parentBlock;
+        currentBlock = currentBlock->m_next;
       }
 
-      if(parentBlock->m_left)
+      if(!m_next)
       {
-        Block* allocatedBlock = traverseTreeCreateNewBlock(size, parentBlock->m_left);
-
-        if (allocatedBlock)
-        {
-          return allocatedBlock;
-        }
+        m_next = Page::allocateNew(c_totalSize);
       }
 
-      const char* freePoolLocation = reinterpret_cast<const char*>(parentBlock);
-      freePoolLocation += sizeof(Block) + parentBlock->c_size;
-
-      Block* newBlock = Block::allocateNew(size, 
+      return m_next->traverseListAllocateNewBlock(size);
     }
 
 
-    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::Block::allocateNew(char* const freePoolLocation, const unsigned blockSize, const bool free, Block* const left, Block* const right, Block* parent)
+    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::Block::allocateNew(char* const freePoolLocation, const unsigned blockSize, const bool free, Block* const prev, Block* const next)
     {
-      ::new reinterpret_cast<Block*>(freePoolLocation) Block(blockSize, free, left, right, parent);
+      ::new (freePoolLocation) Block(blockSize, free, prev, next);
 
       return reinterpret_cast<Block*>(freePoolLocation);
     }
 
 
-    HeterogeneousAllocator::Page::Block::Block(const unsigned size, const bool free, Block* const left, Block* const right, Block* const parent) :
+    HeterogeneousAllocator::Page::Block::Block() :
+      m_size(0),
+      m_free(false),
+      m_prev(0),
+      m_next(0)
+    {
+    }
+
+
+    HeterogeneousAllocator::Page::Block::Block(const unsigned size, const bool free, Block* const prev, Block* const next) :
       m_size(size),
       m_free(free),
-      m_left(left),
-      m_right(right),
-      m_parent(parent)
+      m_prev(prev),
+      m_next(next)
     {
-
     }
 
 
