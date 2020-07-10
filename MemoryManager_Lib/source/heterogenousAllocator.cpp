@@ -63,7 +63,7 @@ namespace Ballast {
 
     HeterogeneousAllocator::Page::Page(const unsigned pageSize) :
       c_pageSize(pageSize),
-      m_parentBlock(Block::allocateNew(reinterpret_cast<char*>(this) + sizeof(Page), pageSize, 0, 0)),
+      m_parentBlock(Page::Block::allocateNew(reinterpret_cast<char*>(this) + sizeof(Page), pageSize, 0, 0)),
       m_freeList(m_parentBlock),
       m_usedList(0),
       m_availableBlocks(1)
@@ -287,29 +287,21 @@ namespace Ballast {
     }
     
     
-    char* const HeterogeneousAllocator::Page::allocate(const unsigned trueSize)
+    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::allocate(const unsigned trueSize)
     {
-      Block* block = traverseFreeListAllocateNewBlock(trueSize);
+      bool shouldCheck = m_freeList->m_size >= trueSize;
 
-      if(!block)
+      if(!shouldCheck && m_availableBlocks >= trueSize)
       {
-        // if there are more Blocks than the size we want to allocate, see if we can consolidate
-        // and try again
-        if(m_availableBlocks >= trueSize && traverseFreeListCheckToConsolidateBlocks())
-        {
-          block = traverseFreeListAllocateNewBlock(trueSize);
-        }
+        shouldCheck = traverseFreeListCheckToConsolidateBlocks();
       }
 
-      return reinterpret_cast<char*>(block) + sizeof(Block);
+      return (shouldCheck) ? traverseFreeListAllocateNewBlock(trueSize) : 0;
     }
 
     
-    void HeterogeneousAllocator::Page::deallocate(char* memory, unsigned size)
+    void HeterogeneousAllocator::Page::deallocate(Block* const block, unsigned size)
     {
-      char* const blockMemory = memory - sizeof(Block);
-      Block* block = reinterpret_cast<Block*>(blockMemory);
-
       removeBlockFromList(block);
       addBlockToFreeList(block);
     }

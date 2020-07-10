@@ -6,7 +6,7 @@ using namespace Ballast;
 
 int main (void)
 {
-  MemoryManager::HeterogeneousAllocator allocator(20);
+  MemoryManager::HeterogeneousAllocator allocator(1024);
 
   return 0;
 }

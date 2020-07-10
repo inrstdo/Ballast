@@ -31,7 +31,9 @@ namespace Ballast {
             void removeBlockFromList(Block* const block);
             void addBlockToFreeList(Block* const block);
             void addBlockToUsedList(Block* const block);
+
             const bool checkToConsolidateBlocks(Block* const first, Block* const second);
+            
             Block* const traverseFreeListAllocateNewBlock(unsigned const size);
             const bool traverseFreeListCheckToConsolidateBlocks();
 
@@ -49,13 +51,14 @@ namespace Ballast {
             Page(const unsigned pageSize);
             ~Page();
 
+
             const unsigned getLargestAvailableSize() const;
             Page* const getNext() const;
 
             void setNext(Page* const nextPage);
 
-            char* const allocate(const unsigned trueSize);
-            void deallocate(char* memory, unsigned size);
+            Block* const allocate(const unsigned trueSize);
+            void deallocate(Block* const block, unsigned size);
 
 
             static Page* const allocateNew(const unsigned pageSize);
@@ -77,7 +80,7 @@ namespace Ballast {
         template<typename T>
         T* allocate(unsigned size)
         {
-          const trueSize = size * sizeof(T);
+          const unsigned trueSize = size * sizeof(T);
 
           if (trueSize > c_pageSize)
           {
@@ -85,9 +88,17 @@ namespace Ballast {
           }
 
           Page* currentPage = c_pageList;
+          Page::Block* block = 0;
 
-          while(currentPage->getLargestAvailableSize() < trueSize)
+          while(true)
           {
+            block = currentPage->allocate(trueSize);
+            
+            if(block)
+            {
+              break;
+            }
+
             if(!currentPage->getNext())
             {
               Page* nextPage = Page::allocateNew(c_pageSize);
@@ -97,9 +108,7 @@ namespace Ballast {
             currentPage = currentPage->getNext();
           }
 
-          char* const memory = currentPage->allocate(size);
-          
-          return reinterpret_cast<T*>(memory);
+          return reinterpret_cast<T*>(reinterpret_cast<char*>(block) + sizeof(Page::Block));
         }
 
         template<typename T>
@@ -113,7 +122,9 @@ namespace Ballast {
 
             if(pageMemory < memory && pageMemory + c_pageSize > memory)
             {
-              currentPage->deallocate(reinterpret_cast<char*>(memory), size);
+              Page::Block* block = reinterpret_cast<Page::Block*>(reinterpret_cast<char*>(memory) - sizeof(Page::Block));
+
+              currentPage->deallocate(block, size);
 
               return;
             }
