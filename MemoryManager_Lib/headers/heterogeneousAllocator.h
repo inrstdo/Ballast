@@ -15,53 +15,47 @@ namespace Ballast {
             struct Block
             {
               Block();
-              Block(const unsigned size, const bool free, Block* const prev, Block* const next);
+              Block(const unsigned size, Block* const prev, Block* const next);
               ~Block();
 
 
-              static Block* const allocateNew(char* const freePoolLocation, const unsigned blockSize, const bool free, Block* const prev, Block* const next);
+              static Block* const allocateNew(char* const memoryLocation, const unsigned blockSize, Block* const prev, Block* const next);
 
 
               unsigned m_size;
-              bool m_free;
-              Block* m_prev;
-              Block* m_next;
+              Block* m_prev,
+                   * m_next;
             };
 
 
-            Block* const traverseListAllocateNewBlock(unsigned const size);
+            void removeBlockFromList(Block* const block);
+            void addBlockToFreeList(Block* const block);
+            void addBlockToUsedList(Block* const block);
+            const bool checkToConsolidateBlocks(Block* const first, Block* const second);
+            Block* const traverseFreeListAllocateNewBlock(unsigned const size);
+            const bool traverseFreeListCheckToConsolidateBlocks();
 
             
-            const unsigned c_totalSize;
-            unsigned m_availableSize;
-            char* m_freePool;
-            Block* m_parentBlock;
+            const unsigned c_pageSize;
+            Block*  m_parentBlock,
+                 *  m_freeList,
+                 *  m_usedList;
             Page* m_next;
+            unsigned m_availableBlocks;
 
 
           public:
             Page();
-            Page(const unsigned pageSize, char* const freePool);
+            Page(const unsigned pageSize);
             ~Page();
 
-            const unsigned getAvailableSize() const;
+            const unsigned getLargestAvailableSize() const;
             Page* const getNext() const;
 
             void setNext(Page* const nextPage);
 
-            template<typename T>
-            T* allocate(const unsigned trueSize)
-            {
-              Block* currentNode = m_parentBlock;
-
-              return 0;
-            }
-
-            template<typename T>
-            void deallocate(T* memory, unsigned size)
-            {
-
-            }
+            char* const allocate(const unsigned trueSize);
+            void deallocate(char* memory, unsigned size);
 
 
             static Page* const allocateNew(const unsigned pageSize);
@@ -87,12 +81,12 @@ namespace Ballast {
 
           if (trueSize > c_pageSize)
           {
-            throw "Cannot allocate any object larger than c_pageSize";
+            throw "Cannot allocate any size larger than c_pageSize";
           }
 
           Page* currentPage = c_pageList;
 
-          while(currentPage->getAvailableSize() < trueSize)
+          while(currentPage->getLargestAvailableSize() < trueSize)
           {
             if(!currentPage->getNext())
             {
@@ -103,13 +97,31 @@ namespace Ballast {
             currentPage = currentPage->getNext();
           }
 
-          return currentPage->allocate<T>(size);
+          char* const memory = currentPage->allocate(size);
+          
+          return reinterpret_cast<T*>(memory);
         }
 
         template<typename T>
         void deallocate(T* memory, unsigned size)
         {
+          Page* currentPage = c_pageList;
 
+          while(currentPage)
+          {
+            char* const pageMemory = reinterpret_cast<Page*>(currentPage);
+
+            if(pageMemory < memory && pageMemory + c_pageSize > memory)
+            {
+              currentPage->deallocate(reinterpret_cast<char*>(memory), size);
+
+              return;
+            }
+
+            currentPage = currentPage->getNext();
+          }
+
+          throw "Cannot deallocate memory";
         }
     };
     

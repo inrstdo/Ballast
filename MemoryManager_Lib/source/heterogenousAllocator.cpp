@@ -45,33 +45,36 @@ namespace Ballast {
     {
       const unsigned trueSize = pageSize + sizeof(Page) + sizeof(Block);
       char* const memory = new char[trueSize]; 
-      ::new (memory) Page(pageSize, memory + sizeof(Page));
+      ::new (memory) Page(pageSize);
 
       return reinterpret_cast<Page*>(memory);
     }
 
 
     HeterogeneousAllocator::Page::Page() :
-      c_totalSize(0),
-      m_availableSize(0),
-      m_freePool(0),
-      m_parentBlock(0)
+      c_pageSize(0),
+      m_parentBlock(0),
+      m_freeList(0),
+      m_usedList(0),
+      m_availableBlocks(0)
     {
     }
 
 
-    HeterogeneousAllocator::Page::Page(const unsigned pageSize, char* const freePool) :
-      c_totalSize(pageSize),
-      m_availableSize(c_totalSize),
-      m_freePool(freePool),
-      m_parentBlock(Block::allocateNew(m_freePool + sizeof(Page), pageSize, true, 0, 0))
+    HeterogeneousAllocator::Page::Page(const unsigned pageSize) :
+      c_pageSize(pageSize),
+      m_parentBlock(Block::allocateNew(reinterpret_cast<char*>(this) + sizeof(Page), pageSize, 0, 0)),
+      m_freeList(m_parentBlock),
+      m_usedList(0),
+      m_availableBlocks(1)
     {
     }
 
 
-    const unsigned HeterogeneousAllocator::Page::getAvailableSize() const
+    const unsigned HeterogeneousAllocator::Page::getLargestAvailableSize() const
     {
-      return m_availableSize;
+      // m_freeList is sorted with the largest block first
+      return m_freeList->m_size;
     }
 
 
@@ -87,72 +90,249 @@ namespace Ballast {
     }
 
     
-    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::traverseListAllocateNewBlock(unsigned const size)
+    void HeterogeneousAllocator::Page::removeBlockFromList(Block* const block)
     {
-      Block* currentBlock = m_parentBlock;
+      if(block->m_prev)
+      {
+        block->m_prev->m_next = block->m_next;
+      }
+
+      if(block->m_next)
+      {
+        block->m_next->m_prev = block->m_prev;
+      }
+    }
+
+
+    void HeterogeneousAllocator::Page::addBlockToFreeList(Block* const block)
+    {
+      if(!m_freeList)
+      {
+        m_freeList = block;
+
+        ++m_availableBlocks;
+
+        return;
+      }
+
+      // Walk through the m_freeList so that it remains sorted by size
+      // Only try to consolidate the Blocks that we walk past; attempts to consolidate *all* possible Blocks
+      // will be made explicitly when a call to allocate() finds that the m_largestSize isn't enough, but the
+      // number of available blocks is equivalent to the size of the requested allocation
+      Block* currentBlock = m_freeList;
 
       while(currentBlock)
       {
-        // if the current Block has capacity and is free
-        if(currentBlock->m_size >= size && currentBlock->m_free)
+        if(block->m_size >= currentBlock->m_size)
         {
-          Block* newNextBlock = 0;
-          const unsigned leftoverSize = currentBlock->m_size - size;
-          unsigned currentSize = size;
-
-          // if there's capacity for another Block after this one
-          if(leftoverSize > sizeof(Block))
+          // if the currentBlock is smaller, add to the m_freeList before it
+          if(currentBlock->m_prev)
           {
-            char* const memory = reinterpret_cast<char*>(currentBlock);
-            newNextBlock = Block::allocateNew(memory + size, leftoverSize - sizeof(Block), true, currentBlock, currentBlock->m_next);
-
-            currentSize -= leftoverSize;
+            currentBlock->m_prev->m_next = block;
           }
 
-          currentBlock->m_size = currentSize;
-          currentBlock->m_free = false;
+          block->m_prev = currentBlock->m_prev;
+          block->m_next = currentBlock;
 
-          if(newNextBlock)
+          currentBlock->m_prev = block;
+
+          if(currentBlock == m_freeList)
           {
-            currentBlock->m_next->m_prev = newNextBlock;
-            currentBlock->m_next = newNextBlock;
+            m_freeList = block;
           }
 
-          return currentBlock;
+          ++m_availableBlocks;
+
+          return;
+        }
+        else if(!currentBlock->m_next)
+        {
+          // if there's no next Block, add to the very end of the m_freeList
+          currentBlock->m_next = block;
+
+          block->m_prev = currentBlock;
+          block->m_next = 0;
+
+          ++m_availableBlocks;
+
+          return;
+        }
+        else
+        {
+          // if we need to walk forward, consolidate Blocks if we can
+          checkToConsolidateBlocks(currentBlock, currentBlock->m_next);
+
+          currentBlock = currentBlock->m_next;
+        }
+      }
+    }
+
+
+    void HeterogeneousAllocator::Page::addBlockToUsedList(Block* const block)
+    {
+      // Add the Block to the beginning of the m_usedList
+      if(m_usedList)
+      {
+        m_usedList->m_prev = block;
+      }
+
+      block->m_next = m_usedList;
+      block->m_prev = 0;
+
+      m_usedList = block;
+
+      --m_availableBlocks;
+    }
+
+
+    const bool HeterogeneousAllocator::Page::checkToConsolidateBlocks(Block* const first, Block* const second)
+    {
+      const unsigned firstSize = first->m_size;
+      const unsigned secondSize = second->m_size;
+      char* const firstMemory = reinterpret_cast<char*>(first);
+      char* const secondMemory = reinterpret_cast<char*>(second);
+
+      if(firstMemory + sizeof(Block) + firstSize == secondMemory)
+      {
+        removeBlockFromList(second);
+        
+        first->m_size += sizeof(Block) + secondSize;
+
+        return true;
+      }
+      else
+      {
+        return false;
+      }
+      
+    }
+
+
+    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::traverseFreeListAllocateNewBlock(const unsigned size)
+    {
+      Block* currentBlock = m_freeList;
+
+      while(currentBlock)
+      {
+        // if the current Block has capacity
+        if(currentBlock->m_size >= size)
+        {
+          // if there's a next Block that's a better fit
+          if(currentBlock->m_next && currentBlock->m_next->m_size >= size &&
+            (currentBlock->m_next->m_size == currentBlock->m_size ||
+            currentBlock->m_next->m_size - size < currentBlock->m_size - size))
+          {
+            // noop, move on to the next Block
+          }
+          else
+          {
+            if(currentBlock == m_freeList)
+            {
+              m_freeList = currentBlock->m_next;
+            }
+
+            removeBlockFromList(currentBlock);
+            addBlockToUsedList(currentBlock);
+
+            unsigned currentSize = currentBlock->m_size;
+            const unsigned leftoverSize = currentSize - size;
+
+            // if there's capacity for another Block after this one
+            if(leftoverSize > sizeof(Block))
+            {
+              currentSize -= leftoverSize;
+
+              char* const memory = reinterpret_cast<char*>(currentBlock);
+              Block* const leftoverBlock = Block::allocateNew(memory + sizeof(Block) + currentSize, leftoverSize - sizeof(Block), 0, 0);
+
+              addBlockToFreeList(leftoverBlock);
+            }
+
+            currentBlock->m_size = currentSize;
+
+            return currentBlock;
+          }
+          
         }
 
         currentBlock = currentBlock->m_next;
       }
 
-      if(!m_next)
-      {
-        m_next = Page::allocateNew(c_totalSize);
-      }
-
-      return m_next->traverseListAllocateNewBlock(size);
+      return 0;
     }
 
 
-    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::Block::allocateNew(char* const freePoolLocation, const unsigned blockSize, const bool free, Block* const prev, Block* const next)
+    bool const HeterogeneousAllocator::Page::traverseFreeListCheckToConsolidateBlocks()
     {
-      ::new (freePoolLocation) Block(blockSize, free, prev, next);
+      Block* currentBlock = m_freeList;
+      bool consolidatedAtLeastOneBlock = false;
 
-      return reinterpret_cast<Block*>(freePoolLocation);
+      while(currentBlock && currentBlock->m_next)
+      {
+        if(checkToConsolidateBlocks(currentBlock, currentBlock->m_next))
+        {
+          if(!consolidatedAtLeastOneBlock)
+          {
+            consolidatedAtLeastOneBlock = true;
+          }
+        }
+        else
+        {
+          currentBlock = currentBlock->m_next;
+        }
+        
+      }
+
+      return consolidatedAtLeastOneBlock;
+    }
+    
+    
+    char* const HeterogeneousAllocator::Page::allocate(const unsigned trueSize)
+    {
+      Block* block = traverseFreeListAllocateNewBlock(trueSize);
+
+      if(!block)
+      {
+        // if there are more Blocks than the size we want to allocate, see if we can consolidate
+        // and try again
+        if(m_availableBlocks >= trueSize && traverseFreeListCheckToConsolidateBlocks())
+        {
+          block = traverseFreeListAllocateNewBlock(trueSize);
+        }
+      }
+
+      return reinterpret_cast<char*>(block) + sizeof(Block);
+    }
+
+    
+    void HeterogeneousAllocator::Page::deallocate(char* memory, unsigned size)
+    {
+      char* const blockMemory = memory - sizeof(Block);
+      Block* block = reinterpret_cast<Block*>(blockMemory);
+
+      removeBlockFromList(block);
+      addBlockToFreeList(block);
+    }
+    
+    
+    HeterogeneousAllocator::Page::Block* const HeterogeneousAllocator::Page::Block::allocateNew(char* const memoryLocation, const unsigned blockSize, Block* const prev, Block* const next)
+    {
+      ::new (memoryLocation) Block(blockSize, prev, next);
+
+      return reinterpret_cast<Block*>(memoryLocation);
     }
 
 
     HeterogeneousAllocator::Page::Block::Block() :
       m_size(0),
-      m_free(false),
       m_prev(0),
       m_next(0)
     {
     }
 
 
-    HeterogeneousAllocator::Page::Block::Block(const unsigned size, const bool free, Block* const prev, Block* const next) :
+    HeterogeneousAllocator::Page::Block::Block(const unsigned size, Block* const prev, Block* const next) :
       m_size(size),
-      m_free(free),
       m_prev(prev),
       m_next(next)
     {
