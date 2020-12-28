@@ -3,7 +3,7 @@
 
 
 namespace Ballast {
-  namespace MemoryManager {
+  namespace MemoryManagement {
 
 
     HeterogeneousAllocator::HeterogeneousAllocator(const unsigned pageSize) :

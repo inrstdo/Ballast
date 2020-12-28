@@ -1,18 +1,22 @@
 {
 	"version": "2.0.0",
 	"tasks": [
+    //////
+    // WITHOUT TESTS
+    //////
 		{
 			"type": "shell",
-			"label": "Compile-only MemoryManager_Lib",
+			"label": "Compile-only MemoryManagement_Lib",
 			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
 			"args": [
 				"-c",
 				"-g",
 				"-Wall",
-				"-I/${workspaceFolder}\\MemoryManager_Lib\\headers",
-				"${workspaceFolder}\\MemoryManager_Lib\\source\\*.cpp",
+        "-I/${workspaceFolder}\\TestManager_Lib\\headers",
+				"-I/${workspaceFolder}\\MemoryManagement_Lib\\headers",
+				"${workspaceFolder}\\MemoryManagement_Lib\\source\\*.cpp",
 				"-o",
-				"${workspaceFolder}\\MemoryManager_Lib\\build.o"
+				"${workspaceFolder}\\MemoryManagement_Lib\\build.o"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -24,15 +28,15 @@
 		},
 		{
 			"type": "shell",
-			"label": "Link MemoryManager_Lib",
+			"label": "Link MemoryManagement_Lib",
 			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
 			"args": [
 				"-shared",
 				"-g",
 				"-Wall",
-				"${workspaceFolder}\\MemoryManager_Lib\\build.o",
+				"${workspaceFolder}\\MemoryManagement_Lib\\build.o",
 				"-o",
-				"${workspaceFolder}\\driver\\MemoryManager_Lib.dll"
+				"${workspaceFolder}\\_driver\\MemoryManagement_Lib.dll"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -41,7 +45,7 @@
 				"$gcc"
 			],
 			"group": "build",
-			"dependsOn":["Compile-only MemoryManager_Lib"],
+			"dependsOn":["Compile-only MemoryManagement_Lib"],
 			"dependsOrder": "sequence"
 		},
 		{
@@ -51,11 +55,11 @@
 			"args": [
 				"-g",
 				"-Wall",
-				"${workspaceFolder}\\driver\\driver.cpp",
-				"-L${workspaceFolder}\\driver",
-				"${workspaceFolder}\\driver\\MemoryManager_Lib.dll",
+				"${workspaceFolder}\\_driver\\driver.cpp",
+				"-L${workspaceFolder}\\_driver",
+				"${workspaceFolder}\\_driver\\MemoryManagement_Lib.dll",
 				"-o",
-				"${workspaceFolder}\\driver\\driver.exe"
+				"${workspaceFolder}\\_driver\\driver.exe"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -67,7 +71,109 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"dependsOn":["Link MemoryManager_Lib"],
+			"dependsOn":["Link MemoryManagement_Lib"],
+			"dependsOrder": "parallel"
+    },
+    
+    //////
+    // WITH TESTS
+    //////
+		{
+			"type": "shell",
+			"label": "Compile and Link TestManager_Lib w/Tests",
+			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-shared",
+				"-g",
+        "-Wall",
+        "-D USE_TESTMANAGER_LIB",
+				"-I/${workspaceFolder}\\TestManager_Lib\\headers",
+				"${workspaceFolder}\\TestManager_Lib\\source\\*.cpp",
+				"-o",
+				"${workspaceFolder}\\_tests\\TestManager_Lib.dll"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build"
+		},
+		{
+			"type": "shell",
+			"label": "Compile-only MemoryManagement_Lib w/Tests",
+			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-c",
+				"-g",
+        "-Wall",
+        "-I/${workspaceFolder}\\TestManager_Lib\\headers",
+				"-I/${workspaceFolder}\\MemoryManagement_Lib\\headers",
+				"${workspaceFolder}\\MemoryManagement_Lib\\source\\*.cpp",
+				"-o",
+				"${workspaceFolder}\\MemoryManagement_Lib\\build.t.o"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"dependsOn":["Compile and Link TestManager_Lib w/Tests"],
+			"dependsOrder": "sequence"
+		},
+		{
+			"type": "shell",
+			"label": "Link MemoryManagement_Lib w/Tests",
+			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-shared",
+				"-g",
+				"-Wall",
+				"${workspaceFolder}\\MemoryManagement_Lib\\build.t.o",
+				"-L${workspaceFolder}\\_tests",
+				"${workspaceFolder}\\_tests\\TestManager_Lib.dll",
+				"-o",
+				"${workspaceFolder}\\_tests\\MemoryManagement_t_Lib.dll"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"dependsOn":["Compile-only MemoryManagement_Lib w/Tests"],
+			"dependsOrder": "sequence"
+		},
+		{
+			"type": "shell",
+			"label": "C/C++ Build w/Tests",
+			"command": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-g",
+				"-Wall",
+        "-I/${workspaceFolder}\\TestManager_Lib\\headers",
+				"${workspaceFolder}\\_tests\\*.cpp",
+				"-L${workspaceFolder}\\_tests",
+				"${workspaceFolder}\\_tests\\TestManager_Lib.dll",
+				"${workspaceFolder}\\_tests\\MemoryManagement_t_Lib.dll",
+				"-o",
+				"${workspaceFolder}\\_tests\\tests.exe"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"dependsOn":["Link MemoryManagement_Lib w/Tests"],
 			"dependsOrder": "parallel"
 		}
 	]

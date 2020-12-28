@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "C++ Debug .Exe",
+      "name": "Debug Driver .Exe",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/driver/driver.exe",
+      "program": "${workspaceFolder}/_driver/driver.exe",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
@@ -26,10 +26,10 @@
       "preLaunchTask": "C/C++ Build"
     },
     {
-      "name": "C++ Debug Immediate .Exe",
+      "name": "Debug Immediate Driver .Exe",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/driver/driver.exe",
+      "program": "${workspaceFolder}/_driver/driver.exe",
       "args": [],
       "stopAtEntry": true,
       "cwd": "${workspaceFolder}",
@@ -45,6 +45,27 @@
         }
       ],
       "preLaunchTask": "C/C++ Build"
+    },
+    {
+      "name": "Debug Tests .Exe",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/_tests/tests.exe",
+      "args": [],
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "C:\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\gdb.exe",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "C/C++ Build w/Tests"
     }
   ]
 }

@@ -2,9 +2,12 @@
 #define HEREROGENEOUSALLOCATOR_H
 
 
-namespace Ballast {
-  namespace MemoryManager {
+#include "../../TestManager_Lib/headers/useTestManager.h"
 
+
+namespace Ballast {
+  namespace MemoryManagement {
+    
 
     class HeterogeneousAllocator
     {
@@ -14,6 +17,7 @@ namespace Ballast {
           private:
             struct Block
             {
+              TESTMANAGER_FRIEND
               Block();
               Block(const unsigned size, Block* const prev, Block* const next);
               ~Block();
@@ -33,7 +37,7 @@ namespace Ballast {
             void addBlockToUsedList(Block* const block);
 
             const bool checkToConsolidateBlocks(Block* const first, Block* const second);
-            
+
             Block* const traverseFreeListAllocateNewBlock(unsigned const size);
             const bool traverseFreeListCheckToConsolidateBlocks();
 
@@ -47,6 +51,7 @@ namespace Ballast {
 
 
           public:
+            TESTMANAGER_FRIEND
             Page();
             Page(const unsigned pageSize);
             ~Page();
@@ -73,6 +78,7 @@ namespace Ballast {
 
 
       public:
+        TESTMANAGER_FRIEND
         HeterogeneousAllocator(const unsigned pageSize);
         ~HeterogeneousAllocator();
 
@@ -115,14 +121,15 @@ namespace Ballast {
         void deallocate(T* memory, unsigned size)
         {
           Page* currentPage = c_pageList;
+          char* const memoryAsChar = reinterpret_cast<char*>(memory);
 
           while(currentPage)
           {
-            char* const pageMemory = reinterpret_cast<Page*>(currentPage);
+            char* const pageMemory = reinterpret_cast<char*>(currentPage);
 
-            if(pageMemory < memory && pageMemory + c_pageSize > memory)
+            if(pageMemory < memoryAsChar && pageMemory + c_pageSize > memoryAsChar)
             {
-              Page::Block* block = reinterpret_cast<Page::Block*>(reinterpret_cast<char*>(memory) - sizeof(Page::Block));
+              Page::Block* block = reinterpret_cast<Page::Block*>(memoryAsChar - sizeof(Page::Block));
 
               currentPage->deallocate(block, size);
 
