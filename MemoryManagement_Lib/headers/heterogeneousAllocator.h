@@ -36,7 +36,9 @@ namespace Ballast {
             void addBlockToFreeList(Block* const block);
             void addBlockToUsedList(Block* const block);
 
-            const bool checkToConsolidateBlocks(Block* const first, Block* const second);
+            const bool checkForAndPerformAllPossibleConsolidations(Block* const block);
+            const bool checkForAndPerformPossibleConsolidation(Block* const first, Block* const second);
+            void consolidateBlocks(Block* const first, Block* const second);
 
             Block* const traverseFreeListAllocateNewBlock(unsigned const size);
             const bool traverseFreeListCheckToConsolidateBlocks();
@@ -47,7 +49,8 @@ namespace Ballast {
                  *  m_freeList,
                  *  m_usedList;
             Page* m_next;
-            unsigned m_availableBlocks;
+            unsigned m_availableBlocks,
+                     m_availableSize;
 
 
           public:
@@ -62,8 +65,8 @@ namespace Ballast {
 
             void setNext(Page* const nextPage);
 
-            Block* const allocate(const unsigned trueSize);
-            void deallocate(Block* const block, unsigned size);
+            Block* const allocate(const unsigned blockSize, const unsigned templateParameterSize);
+            void deallocate(Block* const block);
 
 
             static Page* const allocateNew(const unsigned pageSize);
@@ -86,9 +89,7 @@ namespace Ballast {
         template<typename T>
         T* allocate(unsigned size)
         {
-          const unsigned trueSize = size * sizeof(T);
-
-          if (trueSize > c_pageSize)
+          if (size > c_pageSize)
           {
             throw "Cannot allocate any size larger than c_pageSize";
           }
@@ -96,9 +97,9 @@ namespace Ballast {
           Page* currentPage = c_pageList;
           Page::Block* block = 0;
 
-          while(true)
+          while(currentPage)
           {
-            block = currentPage->allocate(trueSize);
+            block = currentPage->allocate(size, sizeof(T));
             
             if(block)
             {
@@ -118,7 +119,7 @@ namespace Ballast {
         }
 
         template<typename T>
-        void deallocate(T* memory, unsigned size)
+        void deallocate(T* memory)
         {
           Page* currentPage = c_pageList;
           char* const memoryAsChar = reinterpret_cast<char*>(memory);
@@ -127,11 +128,11 @@ namespace Ballast {
           {
             char* const pageMemory = reinterpret_cast<char*>(currentPage);
 
-            if(pageMemory < memoryAsChar && pageMemory + c_pageSize > memoryAsChar)
+            if(pageMemory < memoryAsChar && pageMemory + c_pageSize + sizeof(Page::Block) > memoryAsChar)
             {
               Page::Block* block = reinterpret_cast<Page::Block*>(memoryAsChar - sizeof(Page::Block));
 
-              currentPage->deallocate(block, size);
+              currentPage->deallocate(block);
 
               return;
             }

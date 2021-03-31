@@ -1,3 +1,5 @@
-driver/*.exe
-driver/*.dll
+_driver/*.exe
+_driver/*.dll
+_tests/*.exe
+_tests/*.dll
 *.o
